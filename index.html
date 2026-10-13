@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>UnityChan Coin Collector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+      :root {
+        --background: #09090b;
+        --foreground: #fafafa;
+        --card: rgba(15, 15, 18, 0.82);
+        --card-foreground: #fafafa;
+        --primary: #fafafa;
+        --primary-foreground: #18181b;
+        --secondary: #27272a;
+        --secondary-foreground: #fafafa;
+        --muted: #27272a;
+        --muted-foreground: #a1a1aa;
+        --border: #27272a;
+        --radius: 6px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+      }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: var(--background);
+        font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: var(--foreground);
+        touch-action: none;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      #game-wrapper {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: var(--background);
+      }
+
+      /* Unity Canvas Container */
+      #unity-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        touch-action: none;
+      }
+
+      #unity-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        touch-action: none;
+        cursor: grab;
+      }
+
+      /* Top HUD Bar (shadcn style) */
+      #top-hud {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        right: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        pointer-events: none;
+        z-index: 20;
+        gap: 12px;
+      }
+
+      .hud-badges {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      /* Badge (shadcn/ui Badge) */
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--card);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--foreground);
+        pointer-events: auto;
+      }
+
+      .badge-icon {
+        color: var(--muted-foreground);
+        display: flex;
+        align-items: center;
+      }
+
+      .badge-label {
+        color: var(--muted-foreground);
+        font-size: 12px;
+        letter-spacing: 0.02em;
+      }
+
+      #coin-count, #remaining-count {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: var(--foreground);
+        min-width: 1.5ch;
+        transition: transform 0.15s ease;
+      }
+
+      .score-bump {
+        transform: scale(1.25);
+      }
+
+      /* Button Styles (shadcn/ui Button) */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border-radius: var(--radius);
+        font-size: 13px;
+        font-weight: 500;
+        height: 34px;
+        padding: 0 12px;
+        cursor: pointer;
+        transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        text-decoration: none;
+        white-space: nowrap;
+        pointer-events: auto;
+        background-color: var(--primary);
+        color: var(--primary-foreground);
+        border: 1px solid transparent;
+      }
+
+      .btn:hover {
+        background-color: #e4e4e7;
+      }
+
+      .btn:active {
+        background-color: #d4d4d8;
+      }
+
+      /* Touch Indicator (Minimalist Virtual Pad) */
+      #touch-indicator-center {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: rgba(255, 255, 255, 0.5);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        display: none;
+        z-index: 15;
+      }
+
+      #touch-indicator-dashzone {
+        position: absolute;
+        border-radius: 50%;
+        border: 1px dashed rgba(255, 255, 255, 0.22);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        display: none;
+        z-index: 14;
+        transition: border-color 0.15s ease;
+      }
+
+      #touch-indicator-dashzone.dash-active {
+        border-color: rgba(255, 255, 255, 0.55);
+        background-color: rgba(255, 255, 255, 0.04);
+      }
+
+      #touch-indicator-pointer {
+        position: absolute;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        display: none;
+        z-index: 16;
+        transition: background-color 0.1s ease, border-color 0.1s ease, transform 0.1s ease;
+      }
+
+      #touch-indicator-pointer.dash-active {
+        background-color: rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.85);
+        transform: translate(-50%, -50%) scale(1.15);
+      }
+
+      #touch-indicator-line {
+        position: absolute;
+        height: 1px;
+        background-color: rgba(255, 255, 255, 0.25);
+        transform-origin: left center;
+        pointer-events: none;
+        display: none;
+        z-index: 14;
+      }
+
+      /* Loading Overlay (shadcn Progress) */
+      #loading-overlay {
+        position: absolute;
+        inset: 0;
+        background-color: var(--background);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 50;
+        transition: opacity 0.3s ease;
+      }
+
+      .loading-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 240px;
+        gap: 12px;
+      }
+
+      .loading-title {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--foreground);
+        letter-spacing: -0.01em;
+      }
+
+      .progress-root {
+        position: relative;
+        height: 4px;
+        width: 100%;
+        overflow: hidden;
+        border-radius: 9999px;
+        background-color: var(--secondary);
+      }
+
+      #progress-bar {
+        height: 100%;
+        width: 0%;
+        background-color: var(--primary);
+        border-radius: 9999px;
+        transition: width 0.15s ease;
+      }
+
+      #loading-text {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-wrapper">
+      <!-- Unity Canvas Container -->
+      <div id="unity-container">
+        <canvas id="unity-canvas" tabindex="-1"></canvas>
+      </div>
+
+      <!-- Touch Indicator Elements -->
+      <div id="touch-indicator-center"></div>
+      <div id="touch-indicator-dashzone"></div>
+      <div id="touch-indicator-pointer"></div>
+      <div id="touch-indicator-line"></div>
+
+      <!-- Top HUD (shadcn style) -->
+      <div id="top-hud">
+        <div class="hud-badges">
+          <!-- 獲得コイン数 -->
+          <div class="badge">
+            <span class="badge-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="8" cy="8" r="6"/>
+                <path d="M18.09 10.37A6 6 0 1 1 10.34 18"/>
+                <path d="M7 6h1v4"/>
+                <path d="m16.71 13.88.7.71-2.82 2.82"/>
+              </svg>
+            </span>
+            <span class="badge-label">Coins</span>
+            <span id="coin-count">0</span>
+          </div>
+
+          <!-- 残りコイン数 -->
+          <div class="badge">
+            <span class="badge-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </span>
+            <span class="badge-label">Remaining</span>
+            <span id="remaining-count">0</span>
+          </div>
+        </div>
+
+        <!-- 大量生成ボタン -->
+        <button id="btn-spawn-massive" class="btn" title="コインを250枚生成">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+            <path d="M5 3v4"/>
+            <path d="M19 17v4"/>
+            <path d="M3 5h4"/>
+            <path d="M17 19h4"/>
+          </svg>
+          <span>大量生成</span>
+        </button>
+      </div>
+
+      <!-- Loading Overlay -->
+      <div id="loading-overlay">
+        <div class="loading-card">
+          <div class="loading-title">Loading...</div>
+          <div class="progress-root">
+            <div id="progress-bar"></div>
+          </div>
+          <div id="loading-text">0%</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.unityInstance = null;
+
+      const canvas = document.querySelector("#unity-canvas");
+      const loadingOverlay = document.querySelector("#loading-overlay");
+      const progressBar = document.querySelector("#progress-bar");
+      const loadingText = document.querySelector("#loading-text");
+      const coinCountEl = document.querySelector("#coin-count");
+      const remainingCountEl = document.querySelector("#remaining-count");
+      const btnSpawnMassive = document.querySelector("#btn-spawn-massive");
+
+      const indicatorCenter = document.querySelector("#touch-indicator-center");
+      const indicatorDashzone = document.querySelector("#touch-indicator-dashzone");
+      const indicatorPointer = document.querySelector("#touch-indicator-pointer");
+      const indicatorLine = document.querySelector("#touch-indicator-line");
+
+      // Unity Loader Config
+      const buildUrl = "Build";
+      const loaderUrl = buildUrl + "/WebGLBuild.loader.js";
+      const config = {
+        arguments: [],
+        dataUrl: buildUrl + "/WebGLBuild.data.unityweb",
+        frameworkUrl: buildUrl + "/WebGLBuild.framework.js.unityweb",
+        codeUrl: buildUrl + "/WebGLBuild.wasm.unityweb",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "DefaultCompany",
+        productName: "AnimationSample",
+        productVersion: "0.1",
+      };
+
+      // 1. コイン獲得枚数通知 (Unity .jslib -> HTML)
+      window.onCoinCollected = function(count) {
+        if (coinCountEl) {
+          coinCountEl.innerText = count;
+          coinCountEl.classList.add("score-bump");
+          setTimeout(() => {
+            coinCountEl.classList.remove("score-bump");
+          }, 150);
+        }
+      };
+
+      // 2. 残りコイン枚数通知 (Unity .jslib -> HTML)
+      window.onRemainingCoinsChanged = function(count) {
+        if (remainingCountEl) {
+          remainingCountEl.innerText = count;
+          remainingCountEl.classList.add("score-bump");
+          setTimeout(() => {
+            remainingCountEl.classList.remove("score-bump");
+          }, 150);
+        }
+      };
+
+      // 3. コイン大量生成 (HTML -> Unity: 250枚)
+      btnSpawnMassive.addEventListener("click", function() {
+        if (window.unityInstance) {
+          window.unityInstance.SendMessage("CoinManager", "SpawnMassiveCoinsFromHtml", "");
+        }
+      });
+
+      // 4. スマートフォン タッチ操作 (タッチ開始点基準 & 画面比率でのダッシュ判定)
+      let isTouching = false;
+      let touchOriginX = 0;
+      let touchOriginY = 0;
+      let lastSentTime = 0;
+      const SEND_INTERVAL_MS = 20;
+
+      // 画面短辺に対する比率 (どの端末サイズでも均一な操作感)
+      const DEADZONE_RATIO = 0.02; // 短辺の 2% 未満は微ブレ防止のデッドゾーン
+      const DASH_RATIO = 0.25;     // 短辺の 12% 以上でダッシュへ移行
+
+      function handleTouchStart(clientX, clientY) {
+        isTouching = true;
+        touchOriginX = clientX;
+        touchOriginY = clientY;
+
+        const rect = canvas.getBoundingClientRect();
+        const screenSize = Math.min(rect.width, rect.height);
+        const dashThresholdPx = screenSize * DASH_RATIO;
+
+        // 開始位置インジケータ
+        indicatorCenter.style.display = "block";
+        indicatorCenter.style.left = touchOriginX + "px";
+        indicatorCenter.style.top = touchOriginY + "px";
+
+        // ダッシュ閾値サークル
+        indicatorDashzone.style.display = "block";
+        indicatorDashzone.style.left = touchOriginX + "px";
+        indicatorDashzone.style.top = touchOriginY + "px";
+        indicatorDashzone.style.width = (dashThresholdPx * 2) + "px";
+        indicatorDashzone.style.height = (dashThresholdPx * 2) + "px";
+        indicatorDashzone.classList.remove("dash-active");
+
+        // ポインタ
+        indicatorPointer.style.display = "block";
+        indicatorPointer.style.left = clientX + "px";
+        indicatorPointer.style.top = clientY + "px";
+        indicatorPointer.classList.remove("dash-active");
+
+        // 方向ライン
+        indicatorLine.style.display = "block";
+        indicatorLine.style.left = touchOriginX + "px";
+        indicatorLine.style.top = touchOriginY + "px";
+        indicatorLine.style.width = "0px";
+
+        sendTouchMove(clientX, clientY);
+      }
+
+      function sendTouchMove(clientX, clientY) {
+        if (!isTouching || !window.unityInstance) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const screenSize = Math.min(rect.width, rect.height);
+        const deadzonePx = screenSize * DEADZONE_RATIO;
+        const dashThresholdPx = screenSize * DASH_RATIO;
+
+        // タッチ開始点からの距離・方向
+        const dx = clientX - touchOriginX;
+        const dy = clientY - touchOriginY;
+        const distance = Math.hypot(dx, dy);
+
+        // ダッシュ判定: タッチ開始点からの距離が画面比率の閾値を超えているか
+        const isDash = distance >= dashThresholdPx;
+
+        // UI視覚フィードバック
+        indicatorPointer.style.left = clientX + "px";
+        indicatorPointer.style.top = clientY + "px";
+
+        indicatorLine.style.width = distance + "px";
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        indicatorLine.style.transform = `rotate(${angle}deg)`;
+
+        if (isDash) {
+          indicatorPointer.classList.add("dash-active");
+          indicatorDashzone.classList.add("dash-active");
+        } else {
+          indicatorPointer.classList.remove("dash-active");
+          indicatorDashzone.classList.remove("dash-active");
+        }
+
+        // デッドゾーン (指を置いた直後の微動防止)
+        if (distance < deadzonePx) {
+          sendInputStringToUnity(0, 0, 0);
+          return;
+        }
+
+        // ベクトル正規化 (X: 左右, Z: 前後)
+        // 画面上方向(dy < 0)がUnityの前方(+Z)
+        const normX = dx / distance;
+        const normZ = -dy / distance;
+
+        const now = performance.now();
+        if (now - lastSentTime >= SEND_INTERVAL_MS) {
+          lastSentTime = now;
+          sendInputStringToUnity(normX, normZ, isDash ? 1 : 0);
+        }
+      }
+
+      function sendInputStringToUnity(x, z, isDash) {
+        if (!window.unityInstance) return;
+        const formatted = x.toFixed(3) + "," + z.toFixed(3) + "," + isDash;
+        window.unityInstance.SendMessage("Unity_Chan_generic", "SetTouchInput", formatted);
+      }
+
+      function stopTouchInput() {
+        isTouching = false;
+        indicatorCenter.style.display = "none";
+        indicatorDashzone.style.display = "none";
+        indicatorPointer.style.display = "none";
+        indicatorLine.style.display = "none";
+        indicatorPointer.classList.remove("dash-active");
+        indicatorDashzone.classList.remove("dash-active");
+
+        if (window.unityInstance) {
+          window.unityInstance.SendMessage("Unity_Chan_generic", "SetTouchInput", "0,0,0");
+        }
+      }
+
+      canvas.addEventListener("touchstart", function(e) {
+        e.preventDefault();
+        if (e.touches.length > 0) {
+          handleTouchStart(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+
+      window.addEventListener("touchmove", function(e) {
+        if (!isTouching) return;
+        e.preventDefault();
+        if (e.touches.length > 0) {
+          sendTouchMove(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+
+      window.addEventListener("touchend", function(e) {
+        if (!isTouching) return;
+        e.preventDefault();
+        stopTouchInput();
+      }, { passive: false });
+
+      window.addEventListener("touchcancel", function(e) {
+        if (!isTouching) return;
+        stopTouchInput();
+      });
+
+      // マウスクリック・ドラッグでも動作可能（PCテスト用）
+      let isMouseDown = false;
+      canvas.addEventListener("mousedown", function(e) {
+        if (e.button === 0) {
+          isMouseDown = true;
+          handleTouchStart(e.clientX, e.clientY);
+        }
+      });
+      window.addEventListener("mousemove", function(e) {
+        if (isMouseDown) {
+          sendTouchMove(e.clientX, e.clientY);
+        }
+      });
+      window.addEventListener("mouseup", function(e) {
+        if (isMouseDown) {
+          isMouseDown = false;
+          stopTouchInput();
+        }
+      });
+
+      // 5. Unity スクリプト読み込み & 初期化
+      const script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = () => {
+        createUnityInstance(canvas, config, (progress) => {
+          progressBar.style.width = (100 * progress) + "%";
+          loadingText.innerText = Math.round(100 * progress) + "%";
+        }).then((unityInstance) => {
+          window.unityInstance = unityInstance;
+          loadingOverlay.style.opacity = "0";
+          setTimeout(() => {
+            loadingOverlay.style.display = "none";
+          }, 300);
+        }).catch((message) => {
+          loadingText.innerText = "Error: " + message;
+          console.error(message);
+        });
+      };
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>
